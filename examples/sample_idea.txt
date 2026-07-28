@@ -1,0 +1,13 @@
+A mobile app called "MessMate" for Indian college students and young
+professionals living in PGs/hostels. It connects them with verified home cooks
+("aunties") within a 3 km radius who prepare fresh, homestyle tiffin meals.
+
+Students subscribe weekly or monthly (lunch, dinner, or both). Home cooks set
+their own menus and capacity; the app handles discovery, subscriptions,
+payments, and a hyperlocal delivery network of part-time student riders.
+
+Revenue: 15% commission on every subscription + a "MessMate Plus" tier with
+priority slots from top-rated cooks and free delivery.
+
+Why now: post-COVID distrust of large cloud kitchens, rising PG populations in
+tier-1/tier-2 cities, and UPI making small recurring payments frictionless.
