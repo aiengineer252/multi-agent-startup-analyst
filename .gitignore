@@ -4,6 +4,16 @@
 # Generated analysis reports
 reports/
 
+# Run telemetry (regenerated on every run; can get large)
+runs/
+
+# Eval output
+eval_results.json
+
+# NOTE: evals/baselines/ is deliberately NOT ignored — baselines are committed
+# so that a prompt/spec change and its effect on quality show up in the same
+# code review.
+
 # Python
 __pycache__/
 *.pyc
