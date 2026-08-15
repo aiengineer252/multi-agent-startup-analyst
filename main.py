@@ -26,6 +26,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from startup_analyst.monitoring import resolve_log_path
 from startup_analyst.orchestrator import StartupAnalyst
 from startup_analyst.providers import (
     PROVIDER_PRESETS,
@@ -94,6 +95,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip printing the full memo to the terminal (just save the file).",
     )
+    parser.add_argument(
+        "--tag",
+        action="append",
+        default=None,
+        help="Tag this run in the log (repeatable), e.g. --tag experiment-b. "
+        "Useful for A/B comparing prompts or models later.",
+    )
+    parser.add_argument(
+        "--log",
+        default=None,
+        help="Run-log path (default: runs/runs.jsonl, or $ANALYST_RUN_LOG).",
+    )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Don't record this run in the run log.",
+    )
     return parser.parse_args()
 
 
@@ -156,11 +174,19 @@ def main() -> None:
         )
     )
 
-    analyst = StartupAnalyst(provider)
+    analyst = StartupAnalyst(
+        provider,
+        log_path=str(resolve_log_path(args.log)),
+        tags=args.tag or [],
+    )
 
     start = time.time()
     try:
-        results = analyst.analyze(idea, on_status=lambda m: console.print(f"  {m}"))
+        run = analyst.analyze(
+            idea,
+            on_status=lambda m: console.print(f"  {m}"),
+            persist=not args.no_log,
+        )
     except KeyboardInterrupt:
         console.print("\n[red]Interrupted.[/red]")
         sys.exit(130)
@@ -173,17 +199,40 @@ def main() -> None:
         )
         sys.exit(1)
     elapsed = time.time() - start
+    record = run.record
 
-    markdown = build_markdown(idea, results, provider.label)
+    markdown = build_markdown(idea, run.results, provider.label, record)
     path = save_report(markdown, idea, args.out)
 
+    cost = (
+        f"${record.total_cost_usd:.4f}"
+        if record.total_cost_usd is not None
+        else "cost n/a"
+    )
     console.print(
         f"\n[green]✓ Analysis complete in {elapsed:.0f}s[/green] — "
-        f"report saved to [bold]{path}[/bold]\n"
+        f"{cost} · {record.total_output_tokens:,} output tokens · "
+        f"contract compliance {record.mean_compliance:.0%}"
     )
+    console.print(f"  Report saved to [bold]{path}[/bold]")
+
+    # Surface quality problems immediately rather than burying them in the log.
+    if record.error_count:
+        console.print(
+            f"  [red]⚠ {record.error_count} agent(s) failed[/red] — "
+            "the memo was written from partial input."
+        )
+    off_contract = [
+        a for a in record.agents if a["violations"] and not a["error"]
+    ]
+    if off_contract:
+        console.print(
+            f"  [yellow]⚠ {len(off_contract)} agent(s) broke their output "
+            "contract[/yellow] (see Appendix B in the report)"
+        )
 
     if not args.no_print:
-        memo = results[-1]
+        memo = run.memo
         console.print(
             Panel(
                 Markdown(memo.report),
@@ -192,8 +241,13 @@ def main() -> None:
             )
         )
         console.print(
-            f"\n[dim]Full report (memo + all 5 specialist analyses): {path}[/dim]"
+            f"\n[dim]Full report (memo + 5 specialist analyses + telemetry): "
+            f"{path}[/dim]"
         )
+        if not args.no_log:
+            console.print(
+                "[dim]Run logged. See trends with: python monitor.py dashboard[/dim]"
+            )
 
 
 if __name__ == "__main__":
